@@ -1,0 +1,4 @@
+swipl -g "search(Actions), write(Actions), write('\n'), halt" test1.pl
+[move(0,1),move(1,3),move(3,4),move(4,2),unlock(red),move(2,5),unlock(blue),move(5,6)]
+swipl -g "search(Actions), write(Actions), write('\n'), halt" test2.pl
+[move(0,1),move(1,3),move(3,1),move(1,2),unlock(black),move(2,4),move(4,5)]
