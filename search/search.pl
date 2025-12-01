@@ -1,54 +1,64 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% search.pl  –  Project 6, Question 1
+% Correct search for Project 6 – EXACT BFS ORDER
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% State is state(Room, Keys)
-%   Room = current room number
-%   Keys = list of colors we already collected
 
 search(Actions) :-
-    initial(StartRoom),
-    treasure(GoalRoom),
-    bfs([[state(StartRoom, []), []]], GoalRoom, RevActions),
-    reverse(RevActions, Actions).
+    initial(Start),
+    treasure(Goal),
+    bfs([[state(Start, []), []]], Goal, Rev),
+    reverse(Rev, Actions).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Breadth–First Search over state(Room,Keys)
+% BFS – maintains exact neighbor ordering
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% If current room is the goal, we are done
 bfs([[state(Room, Keys), Actions] | _], Room, Actions).
 
-% Otherwise expand this state and continue with rest of queue
-bfs([[State, Actions] | RestQueue], Goal, ResultActions) :-
-    findall(
-        [NextState, [Act | Actions]],
-        next(State, Act, NextState),
-        NewPairs
-    ),
-    append(RestQueue, NewPairs, NewQueue),
-    bfs(NewQueue, Goal, ResultActions).
+bfs([[State, Actions] | Rest], Goal, Result) :-
+    neighbors_in_order(State, Actions, NewStates),
+    append(Rest, NewStates, NewQueue),
+    bfs(NewQueue, Goal, Result).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Transitions: next(State, Action, NextState)
+% neighbors_in_order(State, Actions, NextStates)
+% EXPLORE IN THIS EXACT ORDER:
+%   1. unlock actions
+%   2. move through plain doors
+%   3. move through locked doors (only if key held)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% 1) Move through an ordinary door (undirected graph)
-next(state(R, Ks), move(R, N), state(N, Ks)) :-
+neighbors_in_order(State, Actions, All) :-
+    findall([NextState, [Act|Actions]], unlock_action(State,Act,NextState), Unlocks),
+    findall([NextState, [Act|Actions]], move_plain(State,Act,NextState), PlainMoves),
+    findall([NextState, [Act|Actions]], move_locked(State,Act,NextState), LockedMoves),
+    append([Unlocks, PlainMoves, LockedMoves], All).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% UNLOCK ACTION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+unlock_action(state(R, Keys), unlock(Color), state(R, [Color|Keys])) :-
+    key(R, Color),
+    \+ member(Color, Keys).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MOVE THROUGH UNLOCKED DOORS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+move_plain(state(R, Keys), move(R,N), state(N, Keys)) :-
     door(R, N).
-next(state(R, Ks), move(R, N), state(N, Ks)) :-
+
+move_plain(state(R, Keys), move(R,N), state(N, Keys)) :-
     door(N, R).
 
-% 2) Move through a locked door only if we already have the key
-next(state(R, Ks), move(R, N), state(N, Ks)) :-
-    locked_door(R, N, Color),
-    member(Color, Ks).
-next(state(R, Ks), move(R, N), state(N, Ks)) :-
-    locked_door(N, R, Color),
-    member(Color, Ks).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MOVE THROUGH LOCKED DOORS (ONLY IF WE HAVE KEY)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% 3) Pick up a key in the current room
-next(state(R, Ks), unlock(Color), state(R, NewKs)) :-
-    key(R, Color),
-    \+ member(Color, Ks),
-    NewKs = [Color | Ks].
+move_locked(state(R, Keys), move(R,N), state(N, Keys)) :-
+    locked_door(R, N, Color),
+    member(Color, Keys).
+
+move_locked(state(R, Keys), move(R,N), state(N, Keys)) :-
+    locked_door(N, R, Color),
+    member(Color, Keys).
