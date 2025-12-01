@@ -5,7 +5,10 @@
 search(Actions) :-
     initial(Start),
     treasure(Goal),
-    bfs([[state(Start, []), []]], Goal, Rev),
+    % Collect keys available at the start room immediately
+    (findall(K, key(Start, K), InitKeys) -> true ; InitKeys = []),
+    % State: state(Room, KeysHeld, UnlockedColors)
+    bfs([[state(Start, InitKeys, []), []]], Goal, Rev),
     reverse(Rev, Actions).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -13,7 +16,7 @@ search(Actions) :-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Base case: Head of queue is at Goal room
-bfs([[state(Room, _Keys), Actions] | _], Room, Actions).
+bfs([[state(Room, _Keys, _Unlocked), Actions] | _], Room, Actions).
 
 % Recursive step
 bfs([[State, Actions] | Rest], Goal, Result) :-
@@ -24,43 +27,48 @@ bfs([[State, Actions] | Rest], Goal, Result) :-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % EXACT ORDER:
 % 1. move through UNLOCKED doors
-% 2. UNLOCK (pick up key)
-% 3. move through LOCKED doors (if key held)
+% 2. UNLOCK (Open locked door)
+% 3. move through LOCKED doors (must be unlocked first)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-neighbors_exact(state(R, Keys), Actions, All) :-
+neighbors_exact(state(R, Keys, Unlocked), Actions, All) :-
     % 1. Plain moves
-    findall([S2, [A|Actions]], move_plain(R, Keys, A, S2), Plain),
+    findall([S2, [A|Actions]], move_plain(R, Keys, Unlocked, A, S2), Plain),
     % 2. Unlock
-    findall([S2, [unlock(C)|Actions]], do_unlock(R, Keys, C, S2), Unlock),
+    findall([S2, [unlock(C)|Actions]], do_unlock(R, Keys, Unlocked, C, S2), UnlockAction),
     % 3. Moves through locked doors
-    findall([S2, [A|Actions]], move_locked(R, Keys, A, S2), Locked),
-    append([Plain, Unlock, Locked], All).
+    findall([S2, [A|Actions]], move_locked(R, Keys, Unlocked, A, S2), Locked),
+    append([Plain, UnlockAction, Locked], All).
+
+% Helper: Update keys when entering a room N
+update_keys(N, CurrentKeys, NewKeys) :-
+    findall(K, key(N, K), RoomKeys),
+    append(CurrentKeys, RoomKeys, AllKeys),
+    sort(AllKeys, NewKeys). % sort removes duplicates
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PLAIN DOORS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-move_plain(R, Keys, move(R,N), state(N,Keys)) :- door(R,N).
-move_plain(R, Keys, move(R,N), state(N,Keys)) :- door(N,R).
+move_plain(R, Keys, Unlocked, move(R,N), state(N, NewKeys, Unlocked)) :-
+    (door(R, N) ; door(N, R)),
+    update_keys(N, Keys, NewKeys).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% UNLOCK (pick up key at same room)
+% UNLOCK (Open locked door)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-do_unlock(R, Keys, Color, state(R, NewKeys)) :-
-    key(R, Color),
-    \+ member(Color, Keys),
-    NewKeys = [Color|Keys].
+do_unlock(R, Keys, Unlocked, Color, state(R, Keys, [Color|Unlocked])) :-
+    % Check if there is a locked door connected to R with Color
+    (locked_door(R, _, Color) ; locked_door(_, R, Color)),
+    member(Color, Keys),       % Must have key
+    \+ member(Color, Unlocked). % Not yet unlocked
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% LOCKED DOORS
+% LOCKED DOORS (Must be unlocked first)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-move_locked(R, Keys, move(R,N), state(N,Keys)) :-
-    locked_door(R,N,Color),
-    member(Color, Keys).
-
-move_locked(R, Keys, move(R,N), state(N,Keys)) :-
-    locked_door(N,R,Color),
-    member(Color, Keys).
+move_locked(R, Keys, Unlocked, move(R,N), state(N, NewKeys, Unlocked)) :-
+    (locked_door(R, N, Color) ; locked_door(N, R, Color)),
+    member(Color, Unlocked),   % Door must be unlocked
+    update_keys(N, Keys, NewKeys).
