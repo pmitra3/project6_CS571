@@ -1,64 +1,63 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Correct search for Project 6 – EXACT BFS ORDER
+% Project 6 Search – NO UNLOCK ACTIONS IN OUTPUT
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 search(Actions) :-
     initial(Start),
     treasure(Goal),
-    bfs([[state(Start, []), []]], Goal, Rev),
-    reverse(Rev, Actions).
+    bfs([[state(Start, []), []]], Goal, RevActions),
+    reverse(RevActions, Actions).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% BFS – maintains exact neighbor ordering
+% BFS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 bfs([[state(Room, Keys), Actions] | _], Room, Actions).
 
 bfs([[State, Actions] | Rest], Goal, Result) :-
-    neighbors_in_order(State, Actions, NewStates),
+    neighbors(State, Actions, NewStates),
     append(Rest, NewStates, NewQueue),
     bfs(NewQueue, Goal, Result).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% neighbors_in_order(State, Actions, NextStates)
-% EXPLORE IN THIS EXACT ORDER:
-%   1. unlock actions
-%   2. move through plain doors
-%   3. move through locked doors (only if key held)
+% Generate neighbors IN EXACT ORDER:
+% 1. Pick up key (silent – NOT added to Actions)
+% 2. Moves through plain doors
+% 3. Moves through locked doors IF key held
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-neighbors_in_order(State, Actions, All) :-
-    findall([NextState, [Act|Actions]], unlock_action(State,Act,NextState), Unlocks),
-    findall([NextState, [Act|Actions]], move_plain(State,Act,NextState), PlainMoves),
-    findall([NextState, [Act|Actions]], move_locked(State,Act,NextState), LockedMoves),
+neighbors(State, Actions, All) :-
+    findall([S2, Actions], silent_unlock(State, S2), Unlocks),
+    findall([S2, [Act|Actions]], move_plain(State, Act, S2), PlainMoves),
+    findall([S2, [Act|Actions]], move_locked(State, Act, S2), LockedMoves),
     append([Unlocks, PlainMoves, LockedMoves], All).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% UNLOCK ACTION
+% INTERNAL KEY PICKUP (NO ACTION ADDED TO OUTPUT)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-unlock_action(state(R, Keys), unlock(Color), state(R, [Color|Keys])) :-
+silent_unlock(state(R, Keys), state(R, [Color|Keys])) :-
     key(R, Color),
     \+ member(Color, Keys).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MOVE THROUGH UNLOCKED DOORS
+% MOVE THROUGH PLAIN DOORS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-move_plain(state(R, Keys), move(R,N), state(N, Keys)) :-
+move_plain(state(R, Keys), move(R, N), state(N, Keys)) :-
     door(R, N).
 
-move_plain(state(R, Keys), move(R,N), state(N, Keys)) :-
+move_plain(state(R, Keys), move(R, N), state(N, Keys)) :-
     door(N, R).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MOVE THROUGH LOCKED DOORS (ONLY IF WE HAVE KEY)
+% MOVE THROUGH LOCKED DOORS (IF KEY HELD)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-move_locked(state(R, Keys), move(R,N), state(N, Keys)) :-
+move_locked(state(R, Keys), move(R, N), state(N, Keys)) :-
     locked_door(R, N, Color),
     member(Color, Keys).
 
-move_locked(state(R, Keys), move(R,N), state(N, Keys)) :-
+move_locked(state(R, Keys), move(R, N), state(N, Keys)) :-
     locked_door(N, R, Color),
     member(Color, Keys).
