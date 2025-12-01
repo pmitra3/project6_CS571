@@ -12,8 +12,10 @@ search(Actions) :-
 % BFS with PERFECT neighbor ordering
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bfs([[state(Room, Keys), Actions] | _], Room, Actions).
+% Base case: Head of queue is at Goal room
+bfs([[state(Room, _Keys), Actions] | _], Room, Actions).
 
+% Recursive step
 bfs([[State, Actions] | Rest], Goal, Result) :-
     neighbors_exact(State, Actions, NewPairs),
     append(Rest, NewPairs, NewQueue),
