@@ -8,7 +8,9 @@ search(Actions) :-
     % Collect keys available at the start room immediately
     (findall(K, key(Start, K), InitKeys) -> true ; InitKeys = []),
     % State: state(Room, KeysHeld, UnlockedColors)
-    bfs([[state(Start, InitKeys, []), []]], Goal, Rev),
+    StartState = state(Start, InitKeys, []),
+    % BFS with Visited set to prevent loops
+    bfs([[StartState, []]], [StartState], Goal, Rev),
     reverse(Rev, Actions).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -16,13 +18,23 @@ search(Actions) :-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Base case: Head of queue is at Goal room
-bfs([[state(Room, _Keys, _Unlocked), Actions] | _], Room, Actions).
+bfs([[state(Room, _Keys, _Unlocked), Actions] | _], _, Room, Actions).
 
 % Recursive step
-bfs([[State, Actions] | Rest], Goal, Result) :-
+bfs([[State, Actions] | Rest], Visited, Goal, Result) :-
     neighbors_exact(State, Actions, NewPairs),
-    append(Rest, NewPairs, NewQueue),
-    bfs(NewQueue, Goal, Result).
+    % Filter out states that have already been visited
+    filter_visited(NewPairs, Visited, NewQueueItems, NewVisited),
+    append(Rest, NewQueueItems, NewQueue),
+    bfs(NewQueue, NewVisited, Goal, Result).
+
+% Helper to filter visited states and update the visited list
+filter_visited([], Visited, [], Visited).
+filter_visited([[State, Acts]|Rest], Visited, [[State, Acts]|NewRest], FinalVisited) :-
+    \+ member(State, Visited), !,
+    filter_visited(Rest, [State|Visited], NewRest, FinalVisited).
+filter_visited([_|Rest], Visited, NewRest, FinalVisited) :-
+    filter_visited(Rest, Visited, NewRest, FinalVisited).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % EXACT ORDER:
@@ -61,11 +73,12 @@ move_plain(R, Keys, Unlocked, move(R,N), state(N, NewKeys, Unlocked)) :-
 % UNLOCK (Open locked door)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-do_unlock(R, Keys, Unlocked, Color, state(R, Keys, [Color|Unlocked])) :-
+do_unlock(R, Keys, Unlocked, Color, state(R, Keys, NewUnlocked)) :-
     % Check if there is a locked door connected to R with Color
     (locked_door(R, _, Color) ; locked_door(_, R, Color)),
     member(Color, Keys),       % Must have key
-    \+ member(Color, Unlocked). % Not yet unlocked
+    \+ member(Color, Unlocked), % Not yet unlocked
+    sort([Color|Unlocked], NewUnlocked). % Sort to ensure canonical state
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % LOCKED DOORS (Must be unlocked first)
