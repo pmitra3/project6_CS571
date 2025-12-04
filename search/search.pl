@@ -52,6 +52,9 @@ update_keys(N, CurrentKeys, NewKeys) :-
 
 move_plain(R, Keys, Unlocked, move(R,N), state(N, NewKeys, Unlocked)) :-
     (door(R, N) ; door(N, R)),
+    % Ensure this door is NOT locked
+    \+ locked_door(R, N, _),
+    \+ locked_door(N, R, _),
     update_keys(N, Keys, NewKeys).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
